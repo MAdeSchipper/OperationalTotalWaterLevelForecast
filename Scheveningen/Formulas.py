@@ -7,7 +7,7 @@ def L0_for(T0):
     return (9.81 * np.array(T0)**2) / (2 * np.pi)
 
 def Set_up(gamma_b, H_b):
-    return 5/16 * gamma_b * np.array(H_b)
+    return 5/16 * gamma_b * np.array(H_b) #see fig 5.35, p 218 of CD1 book
 
 def Run_up21(beta, H0, L0):
     return 1.1 * (0.35*beta*(np.array(H0)*np.array(L0))**0.5 +

@@ -13,8 +13,12 @@ def request_deepwater(loc, nr):
     #print('even kijken welke we nu downloaden')
     #print(url)
     r = requests.get(url)
-    soup = BeautifulSoup(r.content, 'html.parser').prettify()
 
+    soup = BeautifulSoup(r.content, 'html.parser').prettify()
+    #print(soup)
+    #< h3 class ="wbviewer" >
+    #Europlatform - Golfhoogte LT model[cm]
+    #< / h3 >
     w = 'records'
     soup.replace('recid', "recid")
     i1 = soup.find(w)

@@ -2,7 +2,7 @@ from WaveWebScrapeRWS import request_deepwater  # script to grab wavedata from t
 from Waves2Nearshore import \
     Waves2Nearshore  # Script to translate waves from offshore to nearshore (Assumming linear wave theory and uniform depth contours)
 from Tide import request_waterh2  # script to grab waterlevel from the web
-from Formulas import L0_for, Set_up, Run_up21, Run_up22, not_nan, overlap, write_to_excel, exp_to_excel, obs_to_excel
+from Formulas import Set_up, Run_up21, Run_up22, write_to_excel, exp_to_excel, obs_to_excel
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
@@ -21,7 +21,7 @@ SCHE = 'SCHE'
 
 # Model parameters
 gamma_b = 0.86
-depth_stockdon = 10
+Waterdepth_stockdon = 10
 
 # Download wave and waterlevel data
 for iteration in range(10000):
@@ -57,28 +57,50 @@ for iteration in range(10000):
     df5['date'] = pd.to_datetime(df5['date'], format='%Y-%M-%dT%H:%M:%S')
     df5['H0'] = np.where(df5['date'] < datetime.now(), df5['H0_obs'], df5['H0_exp'])
 
-    # calculate wave parameters inshore using Waves2Nearshore function with depth at nan for wave break height
+    # make a plot
+    plot = True  # False
+    if plot:
+        ax = df5.plot('date', 'H0', color='deepskyblue', label='H0', ls=('dashed'), lw=2)
+        ax2 = df5.plot('date', 'tide', color='steelblue', label='WL', ax=ax)
+        ax3 = df5.plot('date', 'T0', color='b', label='T', ls=('dotted'), lw=2, ax=ax2)
+       # df7.plot('date', 'TWL', color='navy', label='TWL expected', ax=ax3)
+        plt.axvline(datetime.now(), color='k', label=str(datetime.now())[:-10])
+        #plt.axhline(3, color='r', label='Critical value at 3m NAP')
+        #plt.ylabel('Waterlevel NAP (m)')
+        #plt.xlabel('Date')
+        plt.legend()
+        plt.grid(b=True, which='major', color='#666666', linestyle='-', alpha=0.2)
+        plt.grid(b=True, which='minor', color='#666666', linestyle='-', alpha=0.2)
+        #filename = "OutputImages/Scheveningen_"
+        #now = datetime.now()
+        #filename2 = now.strftime("%Y%m%d_%H%M%S")
+        #plt.savefig(filename + filename2)
+        plt.savefig("OutputImages/LatestInvoer.png")
+        # plt.show()
+        # The script only continues automatially if you don't show or show&close the figure. It cannot remain open. fix that!
+
+    # calculate wave parameters inshore (specifutying target depth as nan to get properties at the breakpoint)
     df5['H_break'], df5['L0'] = Waves2Nearshore(d_buoy=d_euro, H0=df5['H0'].values, Theta0_SN=df5['Theta0_SN_abs'].values,
                                                 T=df5['T0'].values,
                                                 d_inshore_in=np.nan, gamma_b=gamma_b)[0:2]
-
-    df5[f'H_{depth_stockdon}m'], df5[f'L_{depth_stockdon}m'] = Waves2Nearshore(d_buoy=d_euro, H0=df5['H0'].values,
-                                                                               Theta0_SN=df5['Theta0_SN_abs'].values,
-                                                                               T=df5['T0'].values,
-                                                                               d_inshore_in=depth_stockdon,
-                                                                               gamma_b=gamma_b)[0:2]
+    # calculate wave parameters at deepwater near the beach
+    df5[f'H_{Waterdepth_stockdon}m'], df5[f'L_{Waterdepth_stockdon}m'] = Waves2Nearshore(d_buoy=d_euro, H0=df5['H0'].values,
+                                                                                         Theta0_SN=df5['Theta0_SN_abs'].values,
+                                                                                         T=df5['T0'].values,
+                                                                                         d_inshore_in=Waterdepth_stockdon,
+                                                                                         gamma_b=gamma_b)[0:2]
 
     # Calculate L0, Set-up, and the Run_up
     df5['Irribaren'] = (beta_schev) / np.sqrt(df5['H0'] / df5['L0'])
     df5['wave setup'] = Set_up(gamma_b=gamma_b, H_b=df5['H_break'].values)
-    df5['R_2%'] = np.where(df5['Irribaren'] < 0.3,
-                           Run_up22(H0=df5[f'H_{depth_stockdon}m'], L0=df5[f'L_{depth_stockdon}m']),
-                           Run_up21(beta=beta_schev, H0=df5[f'H_{depth_stockdon}m'], L0=df5[f'L_{depth_stockdon}m']))
-
+    df5['R_2%'] = np.where(df5['Irribaren'] < 0.3,  # something got broken here! Lots of nans
+                            Run_up22(H0=df5[f'H_{Waterdepth_stockdon}m'], L0=df5[f'L_{Waterdepth_stockdon}m']),
+                            Run_up21(beta=beta_schev, H0=df5[f'H_{Waterdepth_stockdon}m'], L0=df5[f'L_{Waterdepth_stockdon}m']))
     # message
     print('--IGNORE ALL ERRORS ABOVE--')
     df5 = df5.fillna(0)
-    df5['MWL'] = np.where(df5['date'] < datetime.now(), df5['wh_observed'] + df5['wave setup'],
+    df5['MWL'] = np.where(df5['date'] < datetime.now(),
+                          df5['wh_observed'] + df5['wave setup'],
                           df5['wh_expected'] + df5['wave setup'])
     df5['TWL'] = df5['MWL'] + df5['R_2%']
 
@@ -90,23 +112,25 @@ for iteration in range(10000):
     # make a plot
     plot = True  # False
     if plot:
-        ax = df6.plot('date', 'MWL', color='deepskyblue', label='MWL observed')
+        ax = df6.plot('date', 'MWL', color='deepskyblue', label='MWL observed', ls=('dashed'), lw=2)
         ax2 = df6.plot('date', 'TWL', color='steelblue', label='TWL observed', ax=ax)
-        ax3 = df7.plot('date', 'MWL', color='b', label='MWL expected', ax=ax2)
+        ax3 = df7.plot('date', 'MWL', color='b', label='MWL expected',ls=('dotted'), lw=2, ax=ax2)
         df7.plot('date', 'TWL', color='navy', label='TWL expected', ax=ax3)
         plt.axvline(datetime.now(), color='k', label=str(datetime.now())[:-10])
         plt.axhline(3, color='r', label='Critical value at 3m NAP')
         plt.ylabel('Waterlevel NAP (m)')
         plt.xlabel('Date')
         plt.legend()
+        plt.grid(b=True, which='major', color='#666666', linestyle='-', alpha=0.2)
+        plt.grid(b=True, which='minor', color='#666666', linestyle='-', alpha=0.2)
         filename = "OutputImages/Scheveningen_"
         now = datetime.now()
         filename2 = now.strftime("%Y%m%d_%H%M%S")
         plt.savefig(filename + filename2)
         plt.savefig("OutputImages/LatestScheveningen.png")
         # plt.show()
-        # The script only coninues automatially if you close the figre. fix that!
-        # add a line to print the image as a filename and as a latest
+        # The script only continues automatially if you don't show or show&close the figure. It cannot remain open. fix that!
+
 
     # Write the data to the Excel files
     write = True
